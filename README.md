@@ -6,3 +6,4 @@
 
 TODO:
 - [ ] tests
+- [ ] optimization: use stream fusion for serial And/Or selectors
