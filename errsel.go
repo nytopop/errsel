@@ -109,6 +109,8 @@ func CausesOf(err error, opts ...TraverseOption) []error {
 	for {
 		if c, ok := e.(causer); ok {
 			e = c.Cause()
+			errs = append(errs, e)
+			continue
 		}
 		errs = append(errs, e)
 		break
