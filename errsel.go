@@ -306,16 +306,22 @@ func classErrsOf(err error, opts ...TraverseOption) []*classErr {
 	return classErrs
 }
 
+// In calls Query and discards the error result.
 func (e *Class) In(err error, opts ...TraverseOption) bool {
 	_, ok := e.Query(err, opts...)
 	return ok
 }
 
+// Is calls Query and discards the bool result.
 func (e *Class) Is(err error, opts ...TraverseOption) error {
 	er, _ := e.Query(err, opts...)
 	return er
 }
 
+// Query checks if err contains the class at any level. If the
+// error is present, the returned err will be the matching error
+// and the bool will be true. Otherwise, the returned err == the
+// original error, and the bool will be false.
 func (e *Class) Query(err error, opts ...TraverseOption) (error, bool) {
 	classErrs := classErrsOf(err, opts...)
 	for _, ce := range classErrs {
@@ -396,8 +402,16 @@ func Depth(d uint) TraverseOption {
 
 // Selector provides an interface for composing error control flow.
 type Selector interface {
+	// In returns true if the error matches this selector, and
+	// false otherwise.
 	In(err error, opts ...TraverseOption) bool
+
+	// In returns the matched error if an error matches this selector,
+	// and the original error otherwise.
 	Is(err error, opts ...TraverseOption) error
+
+	// Query is equivalent to collating the results of In and Is.
+	// In other words, s.Query(err) == s.Is(err), s.In(err).
 	Query(err error, opts ...TraverseOption) (error, bool)
 }
 
@@ -406,23 +420,25 @@ var _ Selector = new(SelectorFunc)
 // SelectorFunc implements Selector.
 type SelectorFunc func(err error, opts ...TraverseOption) (error, bool)
 
-// In calls the underlying function.
+// In calls Query and discards the error result.
 func (f SelectorFunc) In(err error, opts ...TraverseOption) bool {
 	_, ok := f(err, opts...)
 	return ok
 }
 
+// Is calls Query and discards the bool result.
 func (f SelectorFunc) Is(err error, opts ...TraverseOption) error {
 	e, _ := f(err, opts...)
 	return e
 }
 
+// Query executes the underlying SelectorFunc.
 func (f SelectorFunc) Query(err error, opts ...TraverseOption) (error, bool) {
 	return f(err, opts...)
 }
 
 // And returns a selector that will only match if all input selectors
-// match.
+// match. It will always return the error it was called with.
 func And(selectors ...Selector) Selector {
 	return SelectorFunc(func(err error, opts ...TraverseOption) (error, bool) {
 		accum := true
@@ -459,7 +475,7 @@ func AndC(selectors ...Selector) Selector {
 }
 
 // Or returns a selector that will match if any of the input selectors
-// match.
+// match. It will always return the error it was called with.
 func Or(selectors ...Selector) Selector {
 	return SelectorFunc(func(err error, opts ...TraverseOption) (error, bool) {
 		accum := false
