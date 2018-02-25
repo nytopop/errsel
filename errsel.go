@@ -275,6 +275,42 @@ func ClassesOf(err error, opts ...TraverseOption) []*Class {
 	return classes
 }
 
+func classErrsOf(err error, opts ...TraverseOption) []*classErr {
+	cfg := new(traverseConfig)
+	for _, f := range opts {
+		f(cfg)
+	}
+
+	var classErrs []*classErr
+	for _, e := range CausesOf(err) {
+		if c, ok := e.(*classErr); ok {
+			classErrs = append(classErrs, e)
+		}
+	}
+
+	// apply lensing
+	if cfg.lens < uint(len(classErrs)) {
+		classErrs = classErrs[cfg.lens:]
+	} else {
+		classErrs = classErrs[len(classErrs)-1:]
+	}
+
+	// apply depth cutoff
+	if cfg.depth != 0 && uint(len(classErrs)) > cfg.depth {
+		classErrs = classErrs[:cfg.depth+1]
+	}
+
+	// apply shadowing
+	for i, cs := range classErrs {
+		if cs.shadow {
+			classErrs = classErrs[:i+1]
+			break
+		}
+	}
+
+	return classErrs
+}
+
 // In checks if an error has an instance of the class.
 func (e *Class) In(err error, opts ...TraverseOption) bool {
 	// retrieve complete chain and match
@@ -292,6 +328,30 @@ func (e *Class) In(err error, opts ...TraverseOption) bool {
 	}
 
 	return false
+}
+
+func (e *Class) In(err error) {}
+
+// if selector.Query(err) != nil {
+// if e := selector.Query(err); e != nil {
+func (e *Class) Query(err error, opts ...TraverseOption) error {
+	classErrs := classErrsOf(err, opts...)
+	for _, ce := range classErrs {
+		cs := ce.Class()
+		if cs == e {
+			return ce
+		}
+		// hmm, what happens if err is nil?
+
+		// if
+
+		if cs.named && e.named {
+			if cs.name == e.name {
+				return ce
+			}
+		}
+	}
+	return err
 }
 
 // Wrapc wraps the provided error with a class.
@@ -357,6 +417,7 @@ func Depth(d uint) TraverseOption {
 // Selector provides an interface for composing error control flow.
 type Selector interface {
 	In(err error, opts ...TraverseOption) bool
+	Query(err error, opts ...TraverseOption) error
 }
 
 var _ Selector = new(SelectorFunc)
@@ -541,3 +602,5 @@ func t() {
 	}
 }
 */
+
+// TODO: how about some list fusion
