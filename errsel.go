@@ -104,11 +104,15 @@ func CausesOf(err error, opts ...TraverseOption) []error {
 		f(cfg)
 	}
 
-	errs := []error{err}
-	if c, ok := err.(causer); ok {
-		// recurse to find additional causes
-		// we don't pass traverse options to recursive calls
-		errs = append(errs, CausesOf(c.Cause())...)
+	var errs []error
+	e := err
+	for {
+		if c, ok := e.(causer); ok {
+			e = c.Cause()
+			errs = append(errs, e)
+			continue
+		}
+		break
 	}
 
 	// apply lensing
