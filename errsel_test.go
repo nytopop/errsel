@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-var ns = []int{4, 8, 16, 32, 128}
+var ns = []int{8, 128, 1024}
 
 func BenchmarkTrampoline(b *testing.B) {
 	for _, n := range ns {
@@ -119,7 +119,7 @@ func BenchmarkOrC(b *testing.B) {
 }
 
 func slow(_ error) {
-	time.Sleep(5 * time.Millisecond)
+	time.Sleep(25 * time.Millisecond)
 }
 
 func BenchmarkOrCSlowIO(b *testing.B) {

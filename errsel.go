@@ -306,27 +306,6 @@ func classErrsOf(err error, opts ...TraverseOption) []*classErr {
 	return classErrs
 }
 
-/* TODO : disabled during refactor
-// In checks if an error has an instance of the class.
-func (e *Class) In(err error, opts ...TraverseOption) bool {
-	// retrieve complete chain and match
-	classes := ClassesOf(err, opts...)
-	for _, cs := range classes {
-		if cs == e {
-			return true
-		}
-
-		if cs.named && e.named {
-			if cs.name == e.name {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-*/
-
 func (e *Class) In(err error, opts ...TraverseOption) bool {
 	_, ok := e.Query(err, opts...)
 	return ok
@@ -454,25 +433,30 @@ func And(selectors ...Selector) Selector {
 	})
 }
 
-/* disabled during refactoring
 // AndC behaves like And, except that input selectors will be evaluated
 // concurrently.
 func AndC(selectors ...Selector) Selector {
-	return SelectorFunc(func(err error, opts ...TraverseOption) bool {
-		var eg errgroup.Group
+	return SelectorFunc(func(err error, opts ...TraverseOption) (error, bool) {
+		var (
+			accum = true
+			mu    sync.Mutex
+			wg    sync.WaitGroup
+		)
 		for _, sel := range selectors {
-			eg.Go(func() error {
-				if !sel.In(err, opts...) {
-					return new(classErr)
-				}
-				return nil
-			})
+			wg.Add(1)
+			go func(s Selector) {
+				ok := s.In(err, opts...)
+				mu.Lock()
+				accum = accum && ok
+				mu.Unlock()
+				wg.Done()
+			}(sel)
 		}
 
-		return eg.Wait() == nil
+		wg.Wait()
+		return err, accum
 	})
 }
-*/
 
 // Or returns a selector that will match if any of the input selectors
 // match.
@@ -497,13 +481,13 @@ func OrC(selectors ...Selector) Selector {
 		)
 		for _, sel := range selectors {
 			wg.Add(1)
-			go func() {
-				ok := sel.In(err, opts...)
+			go func(s Selector) {
+				ok := s.In(err, opts...)
 				mu.Lock()
 				accum = accum || ok
 				mu.Unlock()
 				wg.Done()
-			}()
+			}(sel)
 		}
 
 		wg.Wait()
