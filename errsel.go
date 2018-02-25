@@ -298,26 +298,32 @@ func (e *Class) Wrapc(err error) error {
 	}
 }
 
+// Errorf is a convenience method for wrapping an errors.Errorf into a class.
 func (e *Class) Errorf(format string, args ...interface{}) error {
 	return e.Wrapc(errors.Errorf(format, args...))
 }
 
+// New is a convenience method for wrapping an errors.New into a class.
 func (e *Class) New(message string) error {
 	return e.Wrapc(errors.New(message))
 }
 
+// WithMessage is a convenience method for wrapping an errors.WithMessage into a class.
 func (e *Class) WithMessage(err error, message string) error {
 	return e.Wrapc(errors.WithMessage(err, message))
 }
 
+// WithStack is a convenience method for wrapping an errors.WithStack into a class.
 func (e *Class) WithStack(err error) error {
 	return e.Wrapc(errors.WithStack(err))
 }
 
+// Wrap is a convenience method for wrapping an errors.Wrap into a class.
 func (e *Class) Wrap(err error, message string) error {
 	return e.Wrapc(errors.Wrap(err, message))
 }
 
+// Wrapf is a convenience method for wrapping an errors.Wrapf into a class.
 func (e *Class) Wrapf(err error, format string, args ...interface{}) error {
 	return e.Wrapc(errors.Wrapf(err, format, args...))
 }
@@ -327,6 +333,7 @@ type traverseConfig struct {
 	depth uint
 }
 
+// TraverseOption should probably not be exported.
 type TraverseOption func(*traverseConfig)
 
 // Lens sets lensing depth to k elements.
@@ -371,7 +378,7 @@ func And(selectors ...Selector) Selector {
 	})
 }
 
-// AndC behaves like And, except that input selectors will be executed
+// AndC behaves like And, except that input selectors will be evaluated
 // concurrently.
 func AndC(selectors ...Selector) Selector {
 	return SelectorFunc(func(err error, opts ...TraverseOption) bool {
@@ -402,7 +409,7 @@ func Or(selectors ...Selector) Selector {
 	})
 }
 
-// OrC behaves like Or, except that input selectors will be executed
+// OrC behaves like Or, except that input selectors will be evaluated
 // concurrently.
 func OrC(selectors ...Selector) Selector {
 	return SelectorFunc(func(err error, opts ...TraverseOption) bool {
