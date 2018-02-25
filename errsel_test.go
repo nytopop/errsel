@@ -3,11 +3,12 @@ package errsel
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 )
 
-var ns = []int{4, 8, 16, 32, 64, 128}
+var ns = []int{4, 8, 16, 32, 128}
 
 func BenchmarkTrampoline(b *testing.B) {
 	for _, n := range ns {
@@ -70,6 +71,94 @@ func BenchmarkRecursive(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				causes := causesOf(err)
 				_ = causes
+			}
+		})
+	}
+}
+
+func BenchmarkOr(b *testing.B) {
+	for _, n := range ns {
+		var css []Selector
+		err := errors.New("hello")
+		for i := 0; i < n; i++ {
+			cs := Anonymous()
+			css = append(css, cs)
+			err = cs.Wrapc(err)
+		}
+
+		selector := Or(css...)
+
+		b.Run("N: "+fmt.Sprint(n), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				v, ok := selector.Query(err)
+				_, _ = v, ok
+			}
+		})
+	}
+}
+
+func BenchmarkOrC(b *testing.B) {
+	for _, n := range ns {
+		var css []Selector
+		err := errors.New("hello")
+		for i := 0; i < n; i++ {
+			cs := Anonymous()
+			css = append(css, cs)
+			err = cs.Wrapc(err)
+		}
+
+		selector := OrC(css...)
+
+		b.Run("N: "+fmt.Sprint(n), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				v, ok := selector.Query(err)
+				_, _ = v, ok
+			}
+		})
+	}
+}
+
+func slow(_ error) {
+	time.Sleep(5 * time.Millisecond)
+}
+
+func BenchmarkOrCSlowIO(b *testing.B) {
+	for _, n := range ns {
+		var css []Selector
+		err := errors.New("hello")
+		for i := 0; i < n; i++ {
+			cs := Anonymous()
+			css = append(css, Call(slow, cs))
+			err = cs.Wrapc(err)
+		}
+
+		selector := OrC(css...)
+
+		b.Run("N: "+fmt.Sprint(n), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				v, ok := selector.Query(err)
+				_, _ = v, ok
+			}
+		})
+	}
+}
+
+func BenchmarkOrSlowIO(b *testing.B) {
+	for _, n := range ns {
+		var css []Selector
+		err := errors.New("hello")
+		for i := 0; i < n; i++ {
+			cs := Anonymous()
+			css = append(css, Call(slow, cs))
+			err = cs.Wrapc(err)
+		}
+
+		selector := Or(css...)
+
+		b.Run("N: "+fmt.Sprint(n), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				v, ok := selector.Query(err)
+				_, _ = v, ok
 			}
 		})
 	}

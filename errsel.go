@@ -83,9 +83,9 @@ package errsel
 import (
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
-	"golang.org/x/sync/errgroup"
 )
 
 type causer interface {
@@ -109,9 +109,8 @@ func CausesOf(err error, opts ...TraverseOption) []error {
 	for {
 		if c, ok := e.(causer); ok {
 			e = c.Cause()
-			errs = append(errs, e)
-			continue
 		}
+		errs = append(errs, e)
 		break
 	}
 
@@ -149,10 +148,7 @@ func (c *classErr) Error() string {
 // Cause returns the cause of the underlying error, or the error
 // itself if there is none.
 func (c *classErr) Cause() error {
-	if cc, ok := c.err.(causer); ok {
-		return cc.Cause()
-	}
-	return c
+	return c.err
 }
 
 // Class returns the underlying class.
@@ -164,9 +160,6 @@ var _ Selector = new(Class)
 
 // Class represents an error class. The zero value is a valid
 // configuration.
-//
-// When used as a selector, all classes will respect provided
-// traverse options as if they were provided to ClassesOf.
 type Class struct {
 	named  bool
 	name   string
@@ -284,7 +277,7 @@ func classErrsOf(err error, opts ...TraverseOption) []*classErr {
 	var classErrs []*classErr
 	for _, e := range CausesOf(err) {
 		if c, ok := e.(*classErr); ok {
-			classErrs = append(classErrs, e)
+			classErrs = append(classErrs, c)
 		}
 	}
 
@@ -302,7 +295,7 @@ func classErrsOf(err error, opts ...TraverseOption) []*classErr {
 
 	// apply shadowing
 	for i, cs := range classErrs {
-		if cs.shadow {
+		if cs.class.shadow {
 			classErrs = classErrs[:i+1]
 			break
 		}
@@ -311,6 +304,7 @@ func classErrsOf(err error, opts ...TraverseOption) []*classErr {
 	return classErrs
 }
 
+/* TODO : disabled during refactor
 // In checks if an error has an instance of the class.
 func (e *Class) In(err error, opts ...TraverseOption) bool {
 	// retrieve complete chain and match
@@ -329,29 +323,34 @@ func (e *Class) In(err error, opts ...TraverseOption) bool {
 
 	return false
 }
+*/
 
-func (e *Class) In(err error) {}
+func (e *Class) In(err error, opts ...TraverseOption) bool {
+	_, ok := e.Query(err, opts...)
+	return ok
+}
 
-// if selector.Query(err) != nil {
-// if e := selector.Query(err); e != nil {
-func (e *Class) Query(err error, opts ...TraverseOption) error {
+func (e *Class) Is(err error, opts ...TraverseOption) error {
+	er, _ := e.Query(err, opts...)
+	return er
+}
+
+func (e *Class) Query(err error, opts ...TraverseOption) (error, bool) {
 	classErrs := classErrsOf(err, opts...)
 	for _, ce := range classErrs {
 		cs := ce.Class()
 		if cs == e {
-			return ce
+			return ce, true
 		}
-		// hmm, what happens if err is nil?
-
-		// if
 
 		if cs.named && e.named {
 			if cs.name == e.name {
-				return ce
+				return ce, true
 			}
 		}
 	}
-	return err
+
+	return err, false
 }
 
 // Wrapc wraps the provided error with a class.
@@ -417,32 +416,43 @@ func Depth(d uint) TraverseOption {
 // Selector provides an interface for composing error control flow.
 type Selector interface {
 	In(err error, opts ...TraverseOption) bool
-	Query(err error, opts ...TraverseOption) error
+	Is(err error, opts ...TraverseOption) error
+	Query(err error, opts ...TraverseOption) (error, bool)
 }
 
 var _ Selector = new(SelectorFunc)
 
 // SelectorFunc implements Selector.
-type SelectorFunc func(err error, opts ...TraverseOption) bool
+type SelectorFunc func(err error, opts ...TraverseOption) (error, bool)
 
 // In calls the underlying function.
 func (f SelectorFunc) In(err error, opts ...TraverseOption) bool {
+	_, ok := f(err, opts...)
+	return ok
+}
+
+func (f SelectorFunc) Is(err error, opts ...TraverseOption) error {
+	e, _ := f(err, opts...)
+	return e
+}
+
+func (f SelectorFunc) Query(err error, opts ...TraverseOption) (error, bool) {
 	return f(err, opts...)
 }
 
 // And returns a selector that will only match if all input selectors
 // match.
 func And(selectors ...Selector) Selector {
-	return SelectorFunc(func(err error, opts ...TraverseOption) bool {
+	return SelectorFunc(func(err error, opts ...TraverseOption) (error, bool) {
+		accum := true
 		for _, sel := range selectors {
-			if !sel.In(err, opts...) {
-				return false
-			}
+			accum = accum && sel.In(err, opts...)
 		}
-		return true
+		return err, accum
 	})
 }
 
+/* disabled during refactoring
 // AndC behaves like And, except that input selectors will be evaluated
 // concurrently.
 func AndC(selectors ...Selector) Selector {
@@ -460,41 +470,50 @@ func AndC(selectors ...Selector) Selector {
 		return eg.Wait() == nil
 	})
 }
+*/
 
 // Or returns a selector that will match if any of the input selectors
 // match.
 func Or(selectors ...Selector) Selector {
-	return SelectorFunc(func(err error, opts ...TraverseOption) bool {
+	return SelectorFunc(func(err error, opts ...TraverseOption) (error, bool) {
+		accum := false
 		for _, sel := range selectors {
-			if sel.In(err, opts...) {
-				return true
-			}
+			accum = accum || sel.In(err, opts...)
 		}
-		return false
+		return err, accum
 	})
 }
 
 // OrC behaves like Or, except that input selectors will be evaluated
 // concurrently.
 func OrC(selectors ...Selector) Selector {
-	return SelectorFunc(func(err error, opts ...TraverseOption) bool {
-		var eg errgroup.Group
+	return SelectorFunc(func(err error, opts ...TraverseOption) (error, bool) {
+		var (
+			accum bool
+			mu    sync.Mutex
+			wg    sync.WaitGroup
+		)
 		for _, sel := range selectors {
-			eg.Go(func() error {
-				if sel.In(err, opts...) {
-					return new(classErr)
-				}
-				return nil
-			})
+			wg.Add(1)
+			go func() {
+				ok := sel.In(err, opts...)
+				mu.Lock()
+				accum = accum || ok
+				mu.Unlock()
+				wg.Done()
+			}()
 		}
-		return eg.Wait() != nil
+
+		wg.Wait()
+		return err, accum
 	})
 }
 
 // Not inverts the input selector.
 func Not(selector Selector) Selector {
-	return SelectorFunc(func(err error, opts ...TraverseOption) bool {
-		return !selector.In(err, opts...)
+	return SelectorFunc(func(err error, opts ...TraverseOption) (error, bool) {
+		e, ok := selector.Query(err, opts...)
+		return e, !ok
 	})
 }
 
@@ -504,13 +523,13 @@ func Not(selector Selector) Selector {
 // If any traverse options are provided, they will behave as if passed
 // to CausesOf.
 func Error(err error) Selector {
-	return SelectorFunc(func(e error, opts ...TraverseOption) bool {
+	return SelectorFunc(func(e error, opts ...TraverseOption) (error, bool) {
 		for _, c := range CausesOf(e, opts...) {
 			if c == e {
-				return true
+				return c, true
 			}
 		}
-		return false
+		return e, false
 	})
 }
 
@@ -522,30 +541,24 @@ func Error(err error) Selector {
 //
 // If any traverse options are provided, they will behave as if
 // passed to CausesOf.
-//
-// TODO: There is currently no way to extract the actual value
-// of the error. that's an oversight :\
-//
-// hmm. what about we just write directly to the interface?
-//
 func Type(t interface{}) Selector {
 	T := reflect.TypeOf(t)
-	return SelectorFunc(func(err error, opts ...TraverseOption) bool {
+	return SelectorFunc(func(err error, opts ...TraverseOption) (error, bool) {
 		for _, c := range CausesOf(err, opts...) {
 			if reflect.TypeOf(c) == T {
-				return true
+				return c, true
 			}
 		}
-		return false
+		return err, false
 	})
 }
 
 // Grep returns a selector that will match if the provided string
 // is a substring of an error's concatenated Error() output.
 func Grep(str string) Selector {
-	return SelectorFunc(func(err error, _ ...TraverseOption) bool {
+	return SelectorFunc(func(err error, _ ...TraverseOption) (error, bool) {
 		idx := strings.Index(err.Error(), str)
-		return idx != -1
+		return err, idx != -1
 	})
 }
 
@@ -559,12 +572,15 @@ func Grep(str string) Selector {
 // impossible to forget to do this. For example, a Call might be used
 // to execute a log function.
 func Call(f func(error), selector Selector) Selector {
-	return SelectorFunc(func(err error, opts ...TraverseOption) bool {
-		matched := selector.In(err, opts...)
-		if matched {
+	return SelectorFunc(func(err error, opts ...TraverseOption) (error, bool) {
+		e, ok := selector.Query(err, opts...)
+		if ok {
+			// TODO: decide whether this should use the found error
+			// or the tip
 			f(err)
+			return e, true
 		}
-		return matched
+		return err, false
 	})
 }
 
@@ -600,6 +616,10 @@ func t() {
 		// we can still handle control flow for
 		// the local function here
 	}
+
+
+	// using return val
+	if
 }
 */
 
