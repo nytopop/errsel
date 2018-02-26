@@ -308,14 +308,12 @@ func classErrsOf(err error, opts ...TraverseOption) []*classErr {
 
 // In calls Query and discards the error result.
 func (e *Class) In(err error, opts ...TraverseOption) bool {
-	_, ok := e.Query(err, opts...)
-	return ok
+	return SelectorFunc(e.Query).In(err, opts...)
 }
 
 // Is calls Query and discards the bool result.
 func (e *Class) Is(err error, opts ...TraverseOption) error {
-	er, _ := e.Query(err, opts...)
-	return er
+	return SelectorFunc(e.Query).Is(err, opts...)
 }
 
 // Query checks if err contains the class at any level. If the
