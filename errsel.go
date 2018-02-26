@@ -338,6 +338,17 @@ func (e *Class) Query(err error, opts ...TraverseOption) (error, bool) {
 	return err, false
 }
 
+// Class returns the class. It's here to implement an unexported interface:
+//
+//    type classer interface {
+//        Class() *Class
+//    }
+//
+// And probably isn't useful for anything else.
+func (e *Class) Class() *Class {
+	return e
+}
+
 // Wrapc wraps the provided error with a class.
 func (e *Class) Wrapc(err error) error {
 	return &classErr{
@@ -562,20 +573,22 @@ func Grep(str string) Selector {
 	})
 }
 
-// Call returns a selector that will call the provided function if the
-// provided selector matches. The result of the match is passed through
-// without modification, so it can be used at any level within a selector
-// definition.
+// Call returns a selector that will run the provided selector, if it
+// matched, the provided function f will be called with its result.
 //
 // This can be useful if a certain error condition needs to be handled
 // a certain way in all cases; using a Call selector means it becomes
 // impossible to forget to do this. For example, a Call might be used
 // to execute a log function.
+//
+// In the event that f is invoked, the value it is provided with should
+// be treated as immutable. Mutating it will lead to undefined behavior
+// in regard to other selectors.
 func Call(f func(error), selector Selector) Selector {
 	return SelectorFunc(func(err error, opts ...TraverseOption) (error, bool) {
 		e, ok := selector.Query(err, opts...)
 		if ok {
-			f(err)
+			f(e)
 		}
 		return e, ok
 	})
@@ -590,7 +603,7 @@ func Once(f func(error), selector Selector) Selector {
 		e, ok := selector.Query(err, opts...)
 		if ok {
 			once.Do(func() {
-				f(err)
+				f(e)
 			})
 		}
 		return e, ok
