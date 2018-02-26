@@ -449,8 +449,6 @@ func And(selectors ...Selector) Selector {
 	})
 }
 
-// Mask(c *Class)
-
 // AndC behaves like And, except that input selectors will be evaluated
 // concurrently.
 func AndC(selectors ...Selector) Selector {
