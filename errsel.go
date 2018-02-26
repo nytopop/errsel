@@ -449,6 +449,8 @@ func And(selectors ...Selector) Selector {
 	})
 }
 
+// Mask(c *Class)
+
 // AndC behaves like And, except that input selectors will be evaluated
 // concurrently.
 func AndC(selectors ...Selector) Selector {
@@ -583,5 +585,14 @@ func Call(f func(error), selector Selector) Selector {
 			return e, true
 		}
 		return err, false
+	})
+}
+
+// Mask returns a selector that masks the provided class with a SelectorFunc
+// wrapper. This can be useful if you want to export a class for use as a
+// selector, while disallowing the creation of new error instances.
+func Mask(c *Class) Selector {
+	return SelectorFunc(func(err error, opts ...TraverseOption) (error, bool) {
+		return c.Query(err, opts...)
 	})
 }
