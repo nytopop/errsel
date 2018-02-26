@@ -581,6 +581,21 @@ func Call(f func(error), selector Selector) Selector {
 	})
 }
 
+// Once behaves like Call, except that the provided function will be invoked
+// only one time throughout the lifetime of the returned selector.
+func Once(f func(error), selector Selector) Selector {
+	var once sync.Once
+	return SelectorFunc(func(err error, opts ...TraverseOption) (error, bool) {
+		e, ok := selector.Query(err, opts...)
+		if ok {
+			once.Do(func() {
+				f(err)
+			})
+		}
+		return e, ok
+	})
+}
+
 // Mask returns a selector that masks the provided class with a SelectorFunc
 // wrapper. This can be useful if you want to export a class for use as a
 // selector, while disallowing the creation of new error instances.
