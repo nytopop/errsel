@@ -581,8 +581,9 @@ func Call(f func(error), selector Selector) Selector {
 	})
 }
 
-// Once behaves like Call, except that the provided function will be invoked
-// only one time throughout the lifetime of the returned selector.
+// Once is an idempotent alternative to Call. For any (n > 0) times that
+// the returned selector has matched, the provided f is guaranteed to have
+// executed exactly once.
 func Once(f func(error), selector Selector) Selector {
 	var once sync.Once
 	return SelectorFunc(func(err error, opts ...TraverseOption) (error, bool) {
