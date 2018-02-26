@@ -575,12 +575,9 @@ func Call(f func(error), selector Selector) Selector {
 	return SelectorFunc(func(err error, opts ...TraverseOption) (error, bool) {
 		e, ok := selector.Query(err, opts...)
 		if ok {
-			// TODO: decide whether this should use the found error
-			// or the tip
 			f(err)
-			return e, true
 		}
-		return err, false
+		return e, ok
 	})
 }
 
