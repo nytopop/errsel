@@ -125,6 +125,27 @@ func BenchmarkClassNestedAutoBindTraverseAlloc(b *testing.B) {
 	}
 }
 
+// nested auto
+var autoBindNestedL = BindsL(stuff, stuff, stuff, stuff)
+
+func BenchmarkClassNestedAutoBindTraverseL(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_, _ = autoBindNestedL.Traverse(ErrSomeErr)
+	}
+}
+func BenchmarkClassNestedAutoBindAllocL(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		stuf := BindsL(goodStuff, okayStuff, badStuff)
+		_ = BindsL(stuf, stuf, stuf, stuf)
+	}
+}
+func BenchmarkClassNestedAutoBindTraverseAllocL(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		stuf := BindsL(goodStuff, okayStuff, badStuff)
+		_, _ = BindsL(stuf, stuf, stuf, stuf).Traverse(ErrSomeErr)
+	}
+}
+
 func BenchmarkClassTraverse(b *testing.B) {
 	sels := []Selector{badStuff, okayStuff, goodStuff}
 	for _, sel := range sels {

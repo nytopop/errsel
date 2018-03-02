@@ -38,12 +38,25 @@ func Bind(f, g Class) Class {
 	//       we should be able to fuse their traversal functions
 	//       into a single pass over the context chain, instead
 	//       of traversing for every bound class
+	//
+	// TODO: type annotations on a standard func(error) bool
 	return ToClass(f.Bind(g), And(f, g))
 }
 
 func Binds(f Class, gs ...Class) Class {
 	for _, g := range gs {
 		f = Bind(f, g)
+	}
+	return f
+}
+
+func BindL(f, g Class) Class {
+	return ToClass(f.Bind(g), AndL(f, g))
+}
+
+func BindsL(f Class, gs ...Class) Class {
+	for _, g := range gs {
+		f = BindL(f, g)
 	}
 	return f
 }

@@ -6,6 +6,9 @@ import (
 	"sync"
 )
 
+// TODO: the type shadowing interfaces should be removed,
+//       it forces
+
 // Selector is an interface for matching errors.
 //
 // A function f of the signature:
@@ -60,6 +63,8 @@ func (f SelectorFunc) Is(err error) error {
 // And returns a selector that will only match if all input selectors
 // match. It will always return the error it was called with on a match,
 // and nil otherwise.
+//
+// And is strict in every input selector.
 func And(ss ...Selector) Selector {
 	// TODO: stream fusion would require selectors to be able to return
 	// their predicate func, if they were created from one.
@@ -70,6 +75,18 @@ func And(ss ...Selector) Selector {
 			accum = accum && ok
 		}
 		return accum
+	})
+}
+
+// AndL is strict in s and lazy in l.
+//
+// otherwise it's like And
+func AndL(s, l Selector) Selector {
+	return Root(func(err error) bool {
+		if !s.In(err) {
+			return false
+		}
+		return l.In(err)
 	})
 }
 
