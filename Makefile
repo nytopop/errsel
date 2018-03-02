@@ -6,3 +6,6 @@ cover:
 
 test:
 	go test -v -race .
+
+bench:
+	go test -v -benchmem -bench .

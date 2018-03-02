@@ -8,15 +8,12 @@ type class struct {
 
 // Anonymous returns an anonymous class.
 //
-// When used as a selector, it will match only against itself. Making
-// a copy will effectively create a new anonymous class distinct from
-// the original.
+// When used as a selector, it will match only against itself.
 //
 // Due to its dependence on an address comparison, it should probably
 // not cross package boundaries.
 func Anonymous() Class {
-	c := &class{}
-	return ToClass(LifterFunc(c.lift), Classes(c.in))
+	return (&class{}).toClass()
 }
 
 // Named returns a named class.
@@ -24,11 +21,10 @@ func Anonymous() Class {
 // When used as a selector, it will match against any other named
 // class with exactly the same name.
 func Named(name string) Class {
-	c := &class{
+	return (&class{
 		named: true,
 		name:  name,
-	}
-	return ToClass(LifterFunc(c.lift), Classes(c.in))
+	}).toClass()
 }
 
 // AnonymousShadow returns an anonymous, shadowing class. Wrapping
@@ -36,13 +32,11 @@ func Named(name string) Class {
 // error's context chain. This can be useful if you need to logically
 // segment internal and external errors.
 //
-// When used as a selector, it will match only against itself. The same
-// copying restrictions as Anonymous apply.
+// When used as a selector, it will match only against itself.
 func AnonymousShadow() Class {
-	c := &class{
+	return (&class{
 		shadow: true,
-	}
-	return ToClass(LifterFunc(c.lift), Classes(c.in))
+	}).toClass()
 }
 
 // NamedShadow returns a named, shadowing class. Wrapping an error
@@ -53,12 +47,15 @@ func AnonymousShadow() Class {
 // When used as a selector, it will match against any other named
 // class with exactly the same name.
 func NamedShadow(name string) Class {
-	c := &class{
+	return (&class{
 		named:  true,
 		name:   name,
 		shadow: true,
-	}
-	return ToClass(LifterFunc(c.lift), Classes(c.in))
+	}).toClass()
+}
+
+func (e *class) toClass() Class {
+	return ToClass(LifterFunc(e.lift), Classes(e.in))
 }
 
 func (e *class) in(err error) bool {
@@ -77,10 +74,6 @@ func (e *class) in(err error) bool {
 }
 
 func (e *class) lift(err error) error {
-	if err == nil {
-		return nil
-	}
-
 	return &classErr{
 		cls: e,
 		err: err,
@@ -93,6 +86,15 @@ type classErr struct {
 }
 
 func (c *classErr) Error() string {
+	var shad string
+	if c.cls.shadow {
+		shad = "#"
+	}
+
+	if c.cls.named {
+		return c.cls.name + shad + "{ " + c.err.Error() + " }"
+	}
+
 	return c.err.Error()
 }
 

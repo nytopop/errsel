@@ -78,4 +78,9 @@
 //       }
 //       return nil
 //    }
+//
+// Classes can also be bound together for more complex error handling needs,
+// and individual errors can be tagged with multiple classes. Bound classes
+// will lift errors into all component classes, and will match as selectors
+// only when all component classes are present in an error.
 package errsel

@@ -61,6 +61,8 @@ func (f SelectorFunc) Is(err error) error {
 // match. It will always return the error it was called with on a match,
 // and nil otherwise.
 func And(ss ...Selector) Selector {
+	// TODO: stream fusion would require selectors to be able to return
+	// their predicate func, if they were created from one.
 	return Root(func(err error) bool {
 		accum := true
 		for _, s := range ss {
@@ -151,10 +153,7 @@ func Not(s Selector) Selector {
 // Any provided traverse options will scope to causes.
 func Error(err error, opts ...TraverseOption) Selector {
 	return Causes(func(er error) bool {
-		if err == er {
-			return true
-		}
-		return false
+		return err == er
 	}, opts...)
 }
 
@@ -165,10 +164,7 @@ func Error(err error, opts ...TraverseOption) Selector {
 func Type(t interface{}, opts ...TraverseOption) Selector {
 	T := reflect.TypeOf(t)
 	return Causes(func(err error) bool {
-		if reflect.TypeOf(err) == T {
-			return true
-		}
-		return false
+		return reflect.TypeOf(err) == T
 	}, opts...)
 }
 
