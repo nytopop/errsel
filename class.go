@@ -38,8 +38,6 @@ func Bind(f, g Class) Class {
 	//       we should be able to fuse their traversal functions
 	//       into a single pass over the context chain, instead
 	//       of traversing for every bound class
-	//
-	// TODO: type annotations on a standard func(error) bool
 	return ToClass(f.Bind(g), And(f, g))
 }
 
@@ -74,6 +72,8 @@ func BindsL(f Class, gs ...Class) Class {
 //    }
 //
 //    var _ Lifter = LifterFunc(nothing)
+//    // or
+//    var _ LifterFunc = nothing
 type Lifter interface {
 	// Lift lifts an error into a new scope.
 	Lift(err error) error
