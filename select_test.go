@@ -24,12 +24,15 @@ func isCause(err error) bool {
 func isCauseP(err error) bool {
 	return err == ErrCause
 }
+
+/*
 func isInter(err error) bool {
 	return err == ErrInter
 }
 func isTip(err error) bool {
 	return err == ErrSomeErr
 }
+*/
 
 func TestMoreT(t *testing.T) {
 	// generate a router of these lol
